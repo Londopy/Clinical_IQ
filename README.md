@@ -22,7 +22,7 @@ A clinical decision support tool for emergency medicine, built for paramedics, n
 | Backend | Express + TypeScript |
 | Clinical computation | Python (`drugdose`, `vitalscore`) |
 | Inter-process | TypeScript → Python via stdin/stdout JSON |
-| Hosting | GitHub Pages (frontend) |
+| Hosting | GitHub Pages (frontend) + Railway (backend) |
 
 ## Python Libraries
 
@@ -69,7 +69,7 @@ pnpm --filter @workspace/clinical-tool run dev
 
 ## Deployment
 
-The frontend is deployed automatically to GitHub Pages on every push to `main` via GitHub Actions. No manual steps required — just push and the workflow handles the build and deploy.
+The frontend deploys automatically to GitHub Pages on every push to `main` via GitHub Actions. The backend runs on Railway and is pointed to by `VITE_API_URL` at build time.
 
 ---
 

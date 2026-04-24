@@ -69,4 +69,8 @@ pnpm --filter @workspace/clinical-tool run dev
 
 ## Deployment
 
-The frontend is deployed automatically to G
+The frontend is deployed automatically to GitHub Pages on every push to `main` via GitHub Actions. No manual steps required — just push and the workflow handles the build and deploy.
+
+---
+
+> **For educational use only. Verify all clinical calculations independently before use.**

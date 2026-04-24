@@ -2,6 +2,8 @@
 
 A clinical decision support tool for emergency medicine, built for paramedics, nurses, and clinicians who need fast, reliable answers at the bedside.
 
+**[Live →](https://londopy.github.io/Clinical_IQ/)**
+
 ## Features
 
 - **Drug Search** — browse and search 49 emergency drugs with full clinical detail: mechanism, routes, reversal agents, and controlled substance status
@@ -16,10 +18,11 @@ A clinical decision support tool for emergency medicine, built for paramedics, n
 |---|---|
 | Frontend | React + Vite + TypeScript |
 | UI | Radix UI + Tailwind CSS |
-| API client | TanStack Query (generated from OpenAPI spec) |
+| State / data fetching | TanStack Query |
 | Backend | Express + TypeScript |
 | Clinical computation | Python (`drugdose`, `vitalscore`) |
 | Inter-process | TypeScript → Python via stdin/stdout JSON |
+| Hosting | GitHub Pages (frontend) |
 
 ## Python Libraries
 
@@ -60,10 +63,10 @@ pip install drugdose vitalscore
 # Start the API server
 pnpm --filter @workspace/api-server run dev
 
-# Start the frontend
+# Start the frontend (runs on http://localhost:5173)
 pnpm --filter @workspace/clinical-tool run dev
 ```
 
----
+## Deployment
 
-> **For educational use only. Verify all clinical calculations independently before use.**
+The frontend is deployed automatically to G

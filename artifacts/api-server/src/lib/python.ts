@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PYTHON = "/home/runner/workspace/.pythonlibs/bin/python3";
+const PYTHON = process.env.PYTHON_PATH ?? "python3";
 
 const SCRIPTS_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

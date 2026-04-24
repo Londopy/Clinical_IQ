@@ -32,12 +32,13 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      - run: pnpm install
+      - run: pnpm install --no-frozen-lockfile
 
       - name: Build clinical-tool
         run: pnpm --filter @workspace/clinical-tool run build
         env:
           BASE_PATH: /Clinical_IQ/
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: clinical-iq-api
+    runtime: node
+    buildCommand: >-
+      pip install drugdose vitalscore &&
+      npm install -g pnpm@10 &&
+      pnpm install --no-frozen-lockfile &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: node artifacts/api-server/dist/index.mjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PYTHON_PATH
+        value: python3
+    plan: free

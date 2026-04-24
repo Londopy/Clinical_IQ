@@ -1,4 +1,4 @@
-# ClinicalIQ
+# Clinical_IQ
 
 A clinical decision support tool for emergency medicine, built for paramedics, nurses, and clinicians who need fast, reliable answers at the bedside.
 

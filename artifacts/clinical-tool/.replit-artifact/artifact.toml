@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Clinical Decision Support"
+version = "1.0.0"
+id = "artifacts/clinical-tool"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19151
+
+[services.development]
+run = "pnpm --filter @workspace/clinical-tool run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/clinical-tool", "run", "build" ]
+publicDir = "artifacts/clinical-tool/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19151"
+BASE_PATH = "/"

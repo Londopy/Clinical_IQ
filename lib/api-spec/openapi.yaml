@@ -1,0 +1,624 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Clinical Decision Support API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: drugs
+    description: Drug database and dose calculations
+  - name: clinical
+    description: Clinical scoring and assessment
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /drugs:
+    get:
+      operationId: searchDrugs
+      tags: [drugs]
+      summary: Search drugs
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of drugs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DrugSummary"
+
+  /drugs/stats:
+    get:
+      operationId: getDrugStats
+      tags: [drugs]
+      summary: Drug database stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrugStats"
+
+  /drugs/{name}:
+    get:
+      operationId: getDrug
+      tags: [drugs]
+      summary: Get a single drug by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Drug detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrugDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clinical/dose:
+    post:
+      operationId: calculateDose
+      tags: [clinical]
+      summary: Calculate a weight-based drug dose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DoseRequest"
+      responses:
+        "200":
+          description: Dose result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoseResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clinical/drip:
+    post:
+      operationId: calculateDrip
+      tags: [clinical]
+      summary: Calculate IV drip rate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DripRequest"
+      responses:
+        "200":
+          description: Drip result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DripResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clinical/vitals:
+    post:
+      operationId: assessVitals
+      tags: [clinical]
+      summary: Score patient vitals (NEWS2, GCS, qSOFA)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VitalsRequest"
+      responses:
+        "200":
+          description: Vitals assessment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalsAssessment"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clinical/safety:
+    post:
+      operationId: checkSafety
+      tags: [clinical]
+      summary: Full safety check for a drug and patient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SafetyRequest"
+      responses:
+        "200":
+          description: Safety check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SafetyResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Patient:
+      type: object
+      properties:
+        weight_kg:
+          type: number
+        age_years:
+          type: number
+        allergies:
+          type: array
+          items:
+            type: string
+        current_medications:
+          type: array
+          items:
+            type: string
+        conditions:
+          type: array
+          items:
+            type: string
+        renal_impairment:
+          type: boolean
+      required:
+        - weight_kg
+        - age_years
+
+    DrugSummary:
+      type: object
+      properties:
+        name:
+          type: string
+        display_name:
+          type: string
+        drug_class:
+          type: string
+        indication:
+          type: string
+        routes:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        controlled_substance:
+          type: ["string", "null"]
+        reversal_agent:
+          type: ["string", "null"]
+      required:
+        - name
+        - display_name
+        - drug_class
+        - indication
+        - routes
+        - tags
+
+    DrugDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        display_name:
+          type: string
+        brand_names:
+          type: array
+          items:
+            type: string
+        drug_class:
+          type: string
+        indication:
+          type: string
+        mechanism:
+          type: string
+        routes:
+          type: array
+          items:
+            type: string
+        contraindications:
+          type: array
+          items:
+            type: string
+        pregnancy_category:
+          type: string
+        controlled_substance:
+          type: ["string", "null"]
+        renal_caution:
+          type: boolean
+        hepatic_caution:
+          type: boolean
+        reversal_agent:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - display_name
+        - brand_names
+        - drug_class
+        - indication
+        - mechanism
+        - routes
+        - contraindications
+        - pregnancy_category
+        - renal_caution
+        - hepatic_caution
+        - tags
+
+    DrugStats:
+      type: object
+      properties:
+        total_drugs:
+          type: integer
+        drug_classes:
+          type: array
+          items:
+            type: string
+        top_tags:
+          type: array
+          items:
+            type: string
+        controlled_count:
+          type: integer
+        reversal_agent_count:
+          type: integer
+      required:
+        - total_drugs
+        - drug_classes
+        - top_tags
+        - controlled_count
+        - reversal_agent_count
+
+    DoseRequest:
+      type: object
+      properties:
+        drug_name:
+          type: string
+        patient:
+          $ref: "#/components/schemas/Patient"
+        route:
+          type: string
+        dose_fraction:
+          type: number
+      required:
+        - drug_name
+        - patient
+
+    ContraindicationFlag:
+      type: object
+      properties:
+        absolute:
+          type: boolean
+        detail:
+          type: string
+      required:
+        - absolute
+        - detail
+
+    InteractionFlag:
+      type: object
+      properties:
+        drug_a:
+          type: string
+        drug_b:
+          type: string
+        severity:
+          type: string
+        description:
+          type: string
+        management:
+          type: string
+      required:
+        - drug_a
+        - drug_b
+        - severity
+        - description
+        - management
+
+    DoseResult:
+      type: object
+      properties:
+        summary:
+          type: string
+        drug_name:
+          type: string
+        display_name:
+          type: string
+        route:
+          type: string
+        dose_display:
+          type: number
+        dose_unit:
+          type: string
+        volume_ml:
+          type: number
+        frequency:
+          type: string
+        contraindications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContraindicationFlag"
+        interactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InteractionFlag"
+      required:
+        - summary
+        - drug_name
+        - display_name
+        - route
+        - dose_display
+        - dose_unit
+        - volume_ml
+        - frequency
+        - contraindications
+        - interactions
+
+    DripRequest:
+      type: object
+      properties:
+        drug_name:
+          type: string
+        patient:
+          $ref: "#/components/schemas/Patient"
+        ordered_dose:
+          type: number
+        dose_unit:
+          type: string
+        concentration_mg_ml:
+          type: ["number", "null"]
+        bag_volume_ml:
+          type: number
+      required:
+        - drug_name
+        - patient
+        - ordered_dose
+        - dose_unit
+
+    DripResult:
+      type: object
+      properties:
+        summary:
+          type: string
+        drug_name:
+          type: string
+        display_name:
+          type: string
+        rate_ml_per_hr:
+          type: number
+        rate_ml_per_min:
+          type: number
+        duration_hr:
+          type: ["number", "null"]
+        bag_volume_ml:
+          type: number
+        concentration_mg_ml:
+          type: number
+        warnings:
+          type: array
+          items:
+            type: string
+        rate_exceeded:
+          type: boolean
+      required:
+        - summary
+        - drug_name
+        - display_name
+        - rate_ml_per_hr
+        - rate_ml_per_min
+        - bag_volume_ml
+        - concentration_mg_ml
+        - warnings
+        - rate_exceeded
+
+    VitalsRequest:
+      type: object
+      properties:
+        respiratory_rate:
+          type: integer
+        spo2:
+          type: number
+        on_oxygen:
+          type: boolean
+        systolic_bp:
+          type: integer
+        heart_rate:
+          type: integer
+        consciousness:
+          type: string
+          description: "ACVPU level: A, C, V, P, or U"
+        temperature:
+          type: number
+        gcs_eye:
+          type: ["integer", "null"]
+        gcs_verbal:
+          type: ["integer", "null"]
+        gcs_motor:
+          type: ["integer", "null"]
+      required:
+        - respiratory_rate
+        - spo2
+        - on_oxygen
+        - systolic_bp
+        - heart_rate
+        - consciousness
+        - temperature
+
+    News2Score:
+      type: object
+      properties:
+        total:
+          type: integer
+        risk:
+          type: string
+        interpretation:
+          type: string
+      required:
+        - total
+        - risk
+        - interpretation
+
+    GcsScore:
+      type: object
+      properties:
+        total:
+          type: integer
+        severity:
+          type: string
+        interpretation:
+          type: string
+        eye_descriptor:
+          type: string
+        verbal_descriptor:
+          type: string
+        motor_descriptor:
+          type: string
+      required:
+        - total
+        - severity
+        - interpretation
+        - eye_descriptor
+        - verbal_descriptor
+        - motor_descriptor
+
+    QsofaScore:
+      type: object
+      properties:
+        total:
+          type: integer
+        sepsis_alert:
+          type: boolean
+        interpretation:
+          type: string
+      required:
+        - total
+        - sepsis_alert
+        - interpretation
+
+    VitalsAssessment:
+      type: object
+      properties:
+        news2:
+          $ref: "#/components/schemas/News2Score"
+        gcs:
+          $ref: "#/components/schemas/GcsScore"
+        qsofa:
+          $ref: "#/components/schemas/QsofaScore"
+      required:
+        - news2
+        - qsofa
+
+    SafetyRequest:
+      type: object
+      properties:
+        drug_name:
+          type: string
+        patient:
+          $ref: "#/components/schemas/Patient"
+        route:
+          type: ["string", "null"]
+      required:
+        - drug_name
+        - patient
+
+    SafetyResult:
+      type: object
+      properties:
+        drug_name:
+          type: string
+        display_name:
+          type: string
+        contraindications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContraindicationFlag"
+        interactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InteractionFlag"
+        has_absolute_contraindication:
+          type: boolean
+        has_major_interaction:
+          type: boolean
+      required:
+        - drug_name
+        - display_name
+        - contraindications
+        - interactions
+        - has_absolute_contraindication
+        - has_major_interaction

@@ -1,0 +1,10 @@
+[project]
+name = "repl-nix-workspace"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "drugdose>=0.1.1",
+    "patchnotes>=1.1.0",
+    "vitalscore>=0.1.1",
+]

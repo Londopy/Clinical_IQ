@@ -3,8 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAssessVitals } from "@workspace/api-client-react";
-import { Activity, HeartPulse, Thermometer, BrainCircuit, ArrowRight, AlertOctagon } from "lucide-react";
-import { motion, animate } from "framer-motion";
+import { Activity, AlertOctagon } from "lucide-react";
+import { motion, animate, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -12,273 +12,220 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
-const vitalsSchema = z.object({
+const schema = z.object({
   respiratory_rate: z.coerce.number().min(0),
-  spo2: z.coerce.number().min(0).max(100),
-  on_oxygen: z.boolean().default(false),
-  systolic_bp: z.coerce.number().min(0),
-  heart_rate: z.coerce.number().min(0),
-  temperature: z.coerce.number().min(20).max(45),
-  consciousness: z.enum(["A", "C", "V", "P", "U"]),
-  gcs_eye: z.coerce.number().optional(),
-  gcs_verbal: z.coerce.number().optional(),
-  gcs_motor: z.coerce.number().optional(),
+  spo2:             z.coerce.number().min(0).max(100),
+  on_oxygen:        z.boolean().default(false),
+  systolic_bp:      z.coerce.number().min(0),
+  heart_rate:       z.coerce.number().min(0),
+  temperature:      z.coerce.number().min(20).max(45),
+  consciousness:    z.enum(["A","C","V","P","U"]),
+  gcs_eye:          z.coerce.number().optional(),
+  gcs_verbal:       z.coerce.number().optional(),
+  gcs_motor:        z.coerce.number().optional(),
 });
+type FV = z.infer<typeof schema>;
 
-type VitalsFormValues = z.infer<typeof vitalsSchema>;
-
-function AnimatedNumber({ value }: { value: number }) {
+function AnimNum({ value }: { value: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const controls = animate(0, value, {
-      duration: 0.8,
-      ease: "easeOut",
-      onUpdate(v) { el.textContent = Math.round(v).toString(); },
-    });
-    return () => controls.stop();
+    const el = ref.current; if (!el) return;
+    const ctrl = animate(0, value, { duration: 0.7, ease: "easeOut", onUpdate(v) { el.textContent = Math.round(v).toString(); } });
+    return () => ctrl.stop();
   }, [value]);
   return <span ref={ref}>0</span>;
 }
 
-function ScoreRing({ score, max, risk, size = 120 }: { score: number; max: number; risk: string; size?: number }) {
-  const radius = (size - 16) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const pct = Math.min(score / max, 1);
-  const strokeColor = risk === "High" || risk === "LOW" ? "#ef4444"
-    : risk === "Medium" || risk === "MEDIUM" ? "#f97316"
-    : "#22c55e";
+// news2.risk is "Low" | "Medium" | "High" | "Very High"
+// qsofa risk derived from sepsis_alert
+// gcs severity is "Mild" | "Moderate" | "Severe"
+const riskStyle = (risk: string) => {
+  const r = (risk || "").toLowerCase();
+  if (r === "high" || r === "very high" || r === "severe")
+    return { stroke: "#ef4444", label: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" };
+  if (r === "medium" || r === "moderate")
+    return { stroke: "#f97316", label: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800" };
+  return { stroke: "#22c55e", label: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800" };
+};
 
+function ScoreCard({ title, score, max, risk, note }: { title: string; score: number; max: number; risk: string; note?: string }) {
+  const s = riskStyle(risk);
+  const r = 28; const circ = 2 * Math.PI * r;
+  const pct = Math.min(score / max, 1);
   return (
-    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={8} className="text-muted/30" />
-        <motion.circle
-          cx={size / 2} cy={size / 2} r={radius} fill="none"
-          stroke={strokeColor} strokeWidth={8}
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: circumference * (1 - pct) }}
-          transition={{ duration: 0.9, ease: "easeOut" }}
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="absolute text-center">
-        <div className="text-2xl font-bold font-mono leading-none" style={{ color: strokeColor }}>
-          <AnimatedNumber value={score} />
+    <div className={`bg-card border rounded-xl p-4 flex gap-4 items-center ${s.bg}`}>
+      <div className="relative shrink-0" style={{ width: 72, height: 72 }}>
+        <svg width={72} height={72} className="-rotate-90">
+          <circle cx={36} cy={36} r={r} fill="none" stroke="currentColor" strokeWidth={6} className="text-muted/30" />
+          <motion.circle cx={36} cy={36} r={r} fill="none" stroke={s.stroke} strokeWidth={6}
+            strokeDasharray={circ} initial={{ strokeDashoffset: circ }}
+            animate={{ strokeDashoffset: circ * (1 - pct) }}
+            transition={{ duration: 0.8, ease: "easeOut" }} strokeLinecap="round" />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-xl font-bold font-mono" style={{ color: s.stroke }}><AnimNum value={score} /></span>
         </div>
-        <div className="text-[10px] text-muted-foreground font-medium">/{max}</div>
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground">Score {score} / {max}</p>
+        <p className={`text-xs font-semibold mt-1 ${s.label}`}>{risk}</p>
+        {note && <p className="text-xs text-muted-foreground mt-0.5 italic">{note}</p>}
       </div>
     </div>
   );
 }
 
-const riskColors = {
-  High: "border-l-red-500",
-  Medium: "border-l-orange-500",
-  Low: "border-l-green-500",
-  HIGH: "border-l-red-500",
-  LOW: "border-l-red-500",
-};
-
 export default function VitalsScorer() {
-  const form = useForm<VitalsFormValues>({
-    resolver: zodResolver(vitalsSchema),
-    defaultValues: {
-      respiratory_rate: 16, spo2: 98, on_oxygen: false,
-      systolic_bp: 120, heart_rate: 80, temperature: 37.0, consciousness: "A",
-    },
+  const form = useForm<FV>({
+    resolver: zodResolver(schema),
+    defaultValues: { respiratory_rate: 18, spo2: 97, on_oxygen: false, systolic_bp: 120, heart_rate: 78, temperature: 37.0, consciousness: "A" },
   });
 
-  const { mutate: assessVitals, data: result, isPending } = useAssessVitals();
+  const { mutate: assess, data: result, isPending, reset: resetResult } = useAssessVitals();
 
-  const onSubmit = (data: VitalsFormValues) => {
-    assessVitals({
+  const onSubmit = (v: FV) => {
+    assess({
       data: {
-        ...data,
-        gcs_eye: data.gcs_eye || null,
-        gcs_verbal: data.gcs_verbal || null,
-        gcs_motor: data.gcs_motor || null,
-      }
+        respiratory_rate: v.respiratory_rate,
+        spo2: v.spo2,
+        on_oxygen: v.on_oxygen,
+        systolic_bp: v.systolic_bp,
+        heart_rate: v.heart_rate,
+        temperature: v.temperature,
+        consciousness: v.consciousness,
+        gcs_eye: v.gcs_eye ?? null,
+        gcs_verbal: v.gcs_verbal ?? null,
+        gcs_motor: v.gcs_motor ?? null,
+      },
     });
   };
 
   return (
-    <div className="flex h-full w-full bg-muted/20 dark:bg-background">
-      <div className="w-1/2 max-w-lg border-r border-border bg-background p-6 overflow-y-auto">
-        <div className="mb-6 pb-4 border-b border-border">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            Vitals Scorer
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">NEWS2 + qSOFA + GCS from one set of vitals.</p>
+    <div className="min-h-full p-7 max-w-3xl">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center">
+          <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
         </div>
+        <div>
+          <h1 className="text-lg font-bold text-foreground leading-none">Vitals Scorer</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">NEWS2 · qSOFA · GCS — simultaneous risk stratification</p>
+        </div>
+      </div>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> Respiratory</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField control={form.control} name="respiratory_rate" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Resp Rate (bpm)</FormLabel><FormControl><Input type="number" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="spo2" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">SpO₂ (%)</FormLabel><FormControl><Input type="number" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
-              <FormField control={form.control} name="on_oxygen" render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 mt-3 bg-muted/20">
-                  <FormLabel className="text-sm cursor-pointer">Supplemental Oxygen</FormLabel>
-                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                </FormItem>
-              )} />
-            </div>
-
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><HeartPulse className="h-3.5 w-3.5" /> Haemodynamics</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField control={form.control} name="systolic_bp" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Systolic BP (mmHg)</FormLabel><FormControl><Input type="number" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="heart_rate" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Heart Rate (bpm)</FormLabel><FormControl><Input type="number" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
-                )} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5" /> Other</h3>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <FormField control={form.control} name="temperature" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Temp (°C)</FormLabel><FormControl><Input type="number" step="0.1" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
-                )} />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        {/* Form */}
+        <div className="lg:col-span-2">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 bg-card border border-border rounded-xl p-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Vital Signs</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                {([
+                  { name: "respiratory_rate" as const, label: "RR (/min)"   },
+                  { name: "spo2"             as const, label: "SpO₂ (%)"    },
+                  { name: "systolic_bp"      as const, label: "Systolic BP" },
+                  { name: "heart_rate"       as const, label: "Heart rate"  },
+                  { name: "temperature"      as const, label: "Temp (°C)"   },
+                ]).map(({ name, label }) => (
+                  <FormField key={name} control={form.control} name={name} render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">{label}</FormLabel>
+                      <FormControl><Input {...field} type="number" step="0.1" className="h-8 text-sm" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                ))}
                 <FormField control={form.control} name="consciousness" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs">ACVPU</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger className="h-9"><SelectValue /></SelectTrigger></FormControl>
+                    <FormLabel className="text-xs">Consciousness</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      </FormControl>
                       <SelectContent>
-                        <SelectItem value="A">Alert</SelectItem>
-                        <SelectItem value="C">Confused</SelectItem>
-                        <SelectItem value="V">Voice</SelectItem>
-                        <SelectItem value="P">Pain</SelectItem>
-                        <SelectItem value="U">Unresponsive</SelectItem>
+                        {[["A","Alert"],["C","Confused"],["V","Voice"],["P","Pain"],["U","Unresponsive"]].map(([v,l]) => (
+                          <SelectItem key={v} value={v} className="text-sm">{v} — {l}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormItem>
                 )} />
               </div>
-            </div>
 
-            <div className="rounded-lg border border-border p-4 bg-muted/10">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <BrainCircuit className="h-3.5 w-3.5" /> GCS (Optional)
-              </h4>
-              <div className="grid grid-cols-3 gap-3">
-                <FormField control={form.control} name="gcs_eye" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Eye (1–4)</FormLabel><FormControl><Input type="number" min="1" max="4" {...field} value={field.value || ""} className="h-9" /></FormControl></FormItem>
-                )} />
-                <FormField control={form.control} name="gcs_verbal" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Verbal (1–5)</FormLabel><FormControl><Input type="number" min="1" max="5" {...field} value={field.value || ""} className="h-9" /></FormControl></FormItem>
-                )} />
-                <FormField control={form.control} name="gcs_motor" render={({ field }) => (
-                  <FormItem><FormLabel className="text-xs">Motor (1–6)</FormLabel><FormControl><Input type="number" min="1" max="6" {...field} value={field.value || ""} className="h-9" /></FormControl></FormItem>
-                )} />
-              </div>
-            </div>
+              <FormField control={form.control} name="on_oxygen" render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0 pt-1">
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  <FormLabel className="text-sm font-normal cursor-pointer">On supplemental O₂</FormLabel>
+                </FormItem>
+              )} />
 
-            <Button type="submit" size="lg" className="w-full font-bold" disabled={isPending}>
-              {isPending ? "Scoring..." : "Calculate Scores"}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </form>
-        </Form>
-      </div>
-
-      <div className="flex-1 p-6 overflow-y-auto">
-        {result ? (
-          <div className="max-w-2xl mx-auto space-y-4">
-            {/* NEWS2 */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`bg-card border-l-4 border border-border rounded-xl p-5 shadow-sm ${riskColors[result.news2.risk as keyof typeof riskColors] ?? "border-l-muted-foreground"}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">NEWS2 Score</div>
-                  <div className="text-lg font-bold text-foreground mb-1">{result.news2.risk} Risk</div>
-                  <p className="text-sm text-muted-foreground">{result.news2.interpretation}</p>
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-2">GCS (optional)</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { name: "gcs_eye"    as const, label: "Eye (1-4)"    },
+                    { name: "gcs_verbal" as const, label: "Verbal (1-5)" },
+                    { name: "gcs_motor"  as const, label: "Motor (1-6)"  },
+                  ]).map(({ name, label }) => (
+                    <FormField key={name} control={form.control} name={name} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-[10px]">{label}</FormLabel>
+                        <FormControl><Input {...field} type="number" className="h-8 text-sm" /></FormControl>
+                      </FormItem>
+                    )} />
+                  ))}
                 </div>
-                <ScoreRing score={result.news2.total} max={20} risk={result.news2.risk} />
               </div>
-            </motion.div>
 
-            {/* qSOFA */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className={`bg-card border-l-4 border border-border rounded-xl p-5 shadow-sm ${result.qsofa.sepsis_alert ? "border-l-red-500" : "border-l-green-500"}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">qSOFA Score</div>
-                    {result.qsofa.sepsis_alert && <AlertOctagon className="h-4 w-4 text-red-500" />}
-                  </div>
-                  <div className="text-lg font-bold text-foreground mb-1">
-                    {result.qsofa.sepsis_alert ? "⚠ Sepsis Alert" : "Low Sepsis Risk"}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{result.qsofa.interpretation}</p>
-                </div>
-                <ScoreRing score={result.qsofa.total} max={3} risk={result.qsofa.sepsis_alert ? "High" : "Low"} />
-              </div>
-            </motion.div>
+              <Button type="submit" disabled={isPending} className="w-full h-8 mt-1">
+                {isPending ? "Scoring…" : "Calculate Scores"}
+              </Button>
+            </form>
+          </Form>
+        </div>
 
-            {/* GCS */}
-            {result.gcs && (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-card border-l-4 border-l-primary border border-border rounded-xl p-5 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Glasgow Coma Scale</div>
-                    <div className="text-lg font-bold text-foreground mb-2">{result.gcs.severity}</div>
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      {[
-                        { label: "Eye", value: result.gcs.eye_descriptor },
-                        { label: "Verbal", value: result.gcs.verbal_descriptor },
-                        { label: "Motor", value: result.gcs.motor_descriptor },
-                      ].map(({ label, value }) => (
-                        <div key={label} className="bg-muted/50 rounded-lg p-2 text-center">
-                          <div className="text-[10px] text-muted-foreground font-semibold uppercase">{label}</div>
-                          <div className="text-xs font-bold mt-0.5 truncate">{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{result.gcs.interpretation}</p>
-                  </div>
-                  <ScoreRing score={result.gcs.total} max={15} risk={result.gcs.total <= 8 ? "High" : result.gcs.total <= 12 ? "Medium" : "Low"} />
+        {/* Results */}
+        <div className="lg:col-span-3">
+          <AnimatePresence mode="wait">
+            {result ? (
+              <motion.div key="result" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Scores</p>
+                  <button onClick={() => resetResult()} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Reset</button>
                 </div>
+
+                <ScoreCard title="NEWS2" score={result.news2.total} max={20} risk={result.news2.risk}
+                  note={result.news2.interpretation} />
+                <ScoreCard title="qSOFA" score={result.qsofa.total} max={3}
+                  risk={result.qsofa.sepsis_alert ? "High" : result.qsofa.total >= 1 ? "Medium" : "Low"}
+                  note={result.qsofa.interpretation} />
+                {result.gcs && (
+                  <ScoreCard title="GCS" score={result.gcs.total} max={15} risk={result.gcs.severity}
+                    note={result.gcs.interpretation} />
+                )}
+
+                {(result.news2.risk === "High" || result.news2.risk === "Very High") && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 mt-2">
+                    <AlertOctagon className="h-4 w-4 shrink-0" />
+                    High-risk NEWS2 — consider urgent clinical review
+                  </div>
+                )}
+                {result.qsofa.sepsis_alert && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 text-xs text-orange-700 dark:text-orange-300">
+                    <AlertOctagon className="h-4 w-4 shrink-0" />
+                    qSOFA positive — assess for sepsis
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground py-16">
+                <Activity className="h-10 w-10 text-muted-foreground/25" />
+                <p className="text-sm">Enter vitals and calculate scores</p>
               </motion.div>
             )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center">
-              <BrainCircuit className="w-10 h-10 text-muted-foreground/50" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-bold text-foreground mb-1">Awaiting Vitals</h3>
-              <p className="text-sm max-w-xs">Enter vitals to see animated NEWS2, qSOFA, and GCS scores.</p>
-            </div>
-          </div>
-        )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

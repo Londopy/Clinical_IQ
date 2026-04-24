@@ -5,109 +5,160 @@ import { useTheme } from "next-themes";
 import {
   Activity, Beaker, Calculator, ShieldAlert, Search,
   Sun, Moon, Home, GitBranch, ChevronLeft, ChevronRight,
-  FlaskConical
+  FlaskConical, Stethoscope
 } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/drugs", label: "Drug Search", icon: Search },
-  { href: "/dose", label: "Dose Calc", icon: Calculator },
-  { href: "/drip", label: "Drip Calc", icon: Beaker },
-  { href: "/vitals", label: "Vitals Scorer", icon: Activity },
-  { href: "/safety", label: "Safety Checker", icon: ShieldAlert },
-  { href: "/interactions", label: "Interactions", icon: GitBranch },
+  { href: "/",            label: "Dashboard",    icon: Home,        color: "text-slate-400" },
+  { href: "/drugs",       label: "Drug Search",  icon: Search,      color: "text-blue-400" },
+  { href: "/dose",        label: "Dose Calc",    icon: Calculator,  color: "text-violet-400" },
+  { href: "/drip",        label: "Drip Calc",    icon: Beaker,      color: "text-cyan-400" },
+  { href: "/vitals",      label: "Vitals Scorer",icon: Activity,    color: "text-emerald-400" },
+  { href: "/safety",      label: "Safety Check", icon: ShieldAlert, color: "text-orange-400" },
+  { href: "/interactions",label: "Interactions", icon: GitBranch,   color: "text-rose-400" },
 ];
 
-function ThemeToggle({ collapsed }: { collapsed: boolean }) {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
+function NavItem({ item, isActive, collapsed }: {
+  item: typeof navItems[0];
+  isActive: boolean;
+  collapsed: boolean;
+}) {
+  const Icon = item.icon;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
-        >
-          <motion.div key={isDark ? "moon" : "sun"} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }} className="shrink-0">
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </motion.div>
-          {!collapsed && <span>{isDark ? "Light Mode" : "Dark Mode"}</span>}
-        </button>
-      </TooltipTrigger>
-      {collapsed && <TooltipContent side="right">{isDark ? "Light Mode" : "Dark Mode"}</TooltipContent>}
-    </Tooltip>
+    <Link href={item.href}>
+      <div className={`
+        relative flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer
+        transition-colors duration-150 group
+        ${isActive
+          ? "bg-white/10 text-white"
+          : "text-slate-400 hover:text-white hover:bg-white/6"}
+        ${collapsed ? "justify-center px-2" : ""}
+      `}>
+        {isActive && (
+          <motion.div
+            layoutId="nav-pill"
+            className="absolute inset-0 rounded-lg bg-white/10 border border-white/15"
+            transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
+          />
+        )}
+        <Icon className={`h-4 w-4 relative z-10 shrink-0 transition-colors ${isActive ? "text-white" : item.color + " group-hover:text-white"}`} />
+        {!collapsed && (
+          <span className={`relative z-10 text-sm font-medium tracking-tight truncate ${isActive ? "text-white" : ""}`}>
+            {item.label}
+          </span>
+        )}
+        {collapsed && isActive && (
+          <div className="absolute left-full ml-3 px-2 py-1 bg-slate-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-slate-700">
+            {item.label}
+          </div>
+        )}
+      </div>
+    </Link>
   );
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+      {/* Sidebar — always deep navy */}
       <motion.aside
-        animate={{ width: collapsed ? 64 : 240 }}
-        transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="relative border-r border-border bg-sidebar flex flex-col shrink-0 overflow-hidden"
+        animate={{ width: collapsed ? 56 : 220 }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="relative flex flex-col shrink-0 overflow-hidden"
+        style={{ background: "hsl(222 47% 5%)" }}
       >
-        <div className="h-16 flex items-center border-b border-border bg-sidebar-primary text-sidebar-primary-foreground shrink-0 overflow-hidden">
-          <div className={`flex items-center gap-2.5 ${collapsed ? "px-4" : "px-5"} transition-all duration-250`}>
-            <div className="shrink-0 w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
-              <FlaskConical className="h-4 w-4 text-white" />
+        {/* Logo */}
+        <div className="h-14 flex items-center shrink-0 px-3 border-b border-white/8">
+          <div className={`flex items-center gap-2.5 min-w-0 ${collapsed ? "justify-center w-full" : ""}`}>
+            <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center shrink-0">
+              <FlaskConical className="h-3.5 w-3.5 text-white" />
             </div>
             <AnimatePresence>
               {!collapsed && (
-                <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.15 }} className="flex flex-col leading-tight">
-                  <span className="font-bold text-base tracking-tight text-white">ClinicalIQ</span>
-                  <span className="text-[10px] text-white/60 font-medium tracking-wider uppercase">Decision Support</span>
+                <motion.div
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="min-w-0"
+                >
+                  <div className="text-white font-bold text-sm tracking-tight leading-none">ClinicalIQ</div>
+                  <div className="text-slate-500 text-[10px] font-medium tracking-widest uppercase mt-0.5">Decision Support</div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         </div>
 
-        <button onClick={() => setCollapsed(!collapsed)} className="absolute top-[52px] -right-3 z-10 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center shadow-sm hover:bg-muted transition-colors">
-          {collapsed ? <ChevronRight className="h-3 w-3 text-muted-foreground" /> : <ChevronLeft className="h-3 w-3 text-muted-foreground" />}
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="absolute top-[52px] -right-3 z-20 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center shadow-sm hover:bg-muted transition-colors"
+        >
+          {collapsed
+            ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            : <ChevronLeft  className="h-3 w-3 text-muted-foreground" />}
         </button>
 
-        <nav className="flex-1 overflow-y-auto py-3 overflow-x-hidden">
-          <ul className={`space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              return (
-                <li key={item.href}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Link href={item.href} className={`flex items-center rounded-lg text-sm font-medium transition-all duration-150 relative group ${collapsed ? "px-3 py-2.5 justify-center" : "px-3 py-2.5 gap-3"} ${isActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}>
-                        {isActive && <motion.div layoutId="activeNav" className="absolute inset-0 rounded-lg bg-sidebar-primary" transition={{ type: "spring", bounce: 0.2, duration: 0.4 }} />}
-                        <Icon className={`h-4 w-4 relative z-10 shrink-0 ${isActive ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-foreground"}`} />
-                        {!collapsed && <span className="relative z-10">{item.label}</span>}
-                      </Link>
-                    </TooltipTrigger>
-                    {collapsed && <TooltipContent side="right">{item.label}</TooltipContent>}
-                  </Tooltip>
-                </li>
-              );
-            })}
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
+          <ul className={`space-y-0.5 ${collapsed ? "px-1.5" : "px-2"}`}>
+            {navItems.map(item => (
+              <li key={item.href}>
+                <NavItem
+                  item={item}
+                  isActive={location === item.href}
+                  collapsed={collapsed}
+                />
+              </li>
+            ))}
           </ul>
         </nav>
 
-        <div className={`border-t border-border ${collapsed ? "p-2" : "p-3"} space-y-1`}>
-          <ThemeToggle collapsed={collapsed} />
+        {/* Bottom controls */}
+        <div className={`border-t border-white/8 ${collapsed ? "p-1.5" : "p-2"} space-y-1`}>
+          <button
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={`
+              w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm
+              text-slate-400 hover:text-white hover:bg-white/6 transition-colors
+              ${collapsed ? "justify-center" : ""}
+            `}
+          >
+            {isDark
+              ? <Sun  className="h-4 w-4 shrink-0" />
+              : <Moon className="h-4 w-4 shrink-0" />}
+            {!collapsed && <span className="text-xs font-medium">{isDark ? "Light mode" : "Dark mode"}</span>}
+          </button>
+
           {!collapsed && (
-            <div className="px-3 pt-1 text-[10px] text-muted-foreground/60 leading-relaxed">
-              Educational use only.<br />Verify all calculations.
+            <div className="px-2 pt-1 pb-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-600 font-medium">
+                <Stethoscope className="h-3 w-3" />
+                Educational use only
+              </div>
             </div>
           )}
         </div>
       </motion.aside>
 
+      {/* Main content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden bg-background min-w-0">
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
-            <motion.div key={location} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18, ease: "easeOut" }} className="h-full">
+            <motion.div
+              key={location}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="h-full"
+            >
               {children}
             </motion.div>
           </AnimatePresence>

@@ -1,4 +1,4 @@
-# ClinicalIQ
+# Clinical_IQ
 
 Point-of-care decision support for emergency medicine. Built for paramedics, nurses, and clinicians who need fast, reliable answers at the bedside.
 

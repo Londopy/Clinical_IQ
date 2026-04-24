@@ -3,50 +3,48 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useSearchDrugs, useCalculateDose, getSearchDrugsQueryKey } from "@workspace/api-client-react";
-import { Calculator, AlertTriangle, Syringe, Info, UserRound, ArrowRight } from "lucide-react";
+import { Calculator, AlertTriangle, Info, UserRound, ArrowRight, Syringe, Copy, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 
-const doseFormSchema = z.object({
-  drug_name: z.string().min(1, "Please select a drug"),
-  weight_kg: z.coerce.number().min(1, "Weight must be positive"),
-  age_years: z.coerce.number().min(0, "Age must be valid"),
+const schema = z.object({
+  drug_name: z.string().min(1),
+  weight_kg: z.coerce.number().min(1),
+  age_years: z.coerce.number().min(0),
   route: z.string().optional(),
   renal_impairment: z.boolean().default(false),
   allergies: z.string(),
+  dose_fraction: z.number().min(0.25).max(2).default(1.0),
 });
 
-type DoseFormValues = z.infer<typeof doseFormSchema>;
+type FormValues = z.infer<typeof schema>;
 
 export default function DoseCalculator() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const { data: drugs } = useSearchDrugs({ q: searchTerm }, { query: { queryKey: getSearchDrugsQueryKey({ q: searchTerm }) }});
-  
-  const form = useForm<DoseFormValues>({
-    resolver: zodResolver(doseFormSchema),
-    defaultValues: {
-      drug_name: "",
-      weight_kg: 70,
-      age_years: 45,
-      renal_impairment: false,
-      allergies: "",
-    },
+  const [searchTerm] = useState("");
+  const [copied, setCopied] = useState(false);
+  const { data: drugs } = useSearchDrugs({ q: searchTerm }, { query: { queryKey: getSearchDrugsQueryKey({ q: searchTerm }) } });
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { drug_name: "", weight_kg: 70, age_years: 45, renal_impairment: false, allergies: "", dose_fraction: 1.0 },
   });
 
   const { mutate: calculateDose, data: result, isPending } = useCalculateDose();
 
-  const onSubmit = (data: DoseFormValues) => {
+  const onSubmit = (data: FormValues) => {
     calculateDose({
       data: {
         drug_name: data.drug_name,
         route: data.route,
+        dose_fraction: data.dose_fraction,
         patient: {
           weight_kg: data.weight_kg,
           age_years: data.age_years,
@@ -58,259 +56,208 @@ export default function DoseCalculator() {
   };
 
   const selectedDrugName = form.watch("drug_name");
-  const selectedDrugDetail = drugs?.find(d => d.name === selectedDrugName);
+  const selectedDrug = drugs?.find(d => d.name === selectedDrugName);
+  const doseFraction = form.watch("dose_fraction");
+
+  const fractionLabels: Record<number, string> = { 0.25: "¼", 0.5: "½", 0.75: "¾", 1.0: "Full", 1.25: "1¼", 1.5: "1½", 2.0: "2×" };
+
+  const copyResult = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(`${result.display_name} (${result.route}): ${result.dose_display} ${result.dose_unit} = ${result.volume_ml}mL — ${result.frequency}`);
+    setCopied(true);
+    toast.success("Result copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="flex h-full w-full bg-muted/20">
-      {/* Form Pane */}
-      <div className="w-1/2 max-w-xl border-r border-border bg-background p-6 overflow-y-auto">
+    <div className="flex h-full w-full bg-muted/20 dark:bg-background">
+      {/* Form */}
+      <div className="w-1/2 max-w-lg border-r border-border bg-background p-6 overflow-y-auto">
         <div className="mb-6 pb-4 border-b border-border">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Calculator className="w-6 h-6 text-primary" />
             Dose Calculator
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Calculate exact weight-based dosing and identify potential warnings.
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Weight-based dosing with patient safety checks.</p>
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            {/* Patient Vitals Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2 text-primary">
-                <UserRound className="w-5 h-5" /> Patient Profile
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="weight_kg"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Weight (kg) <span className="text-destructive">*</span></FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" placeholder="70" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="age_years"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Age (years) <span className="text-destructive">*</span></FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="45" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Patient */}
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><UserRound className="h-3.5 w-3.5" /> Patient</h3>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <FormField control={form.control} name="weight_kg" render={({ field }) => (
+                  <FormItem><FormLabel className="text-xs">Weight (kg)</FormLabel><FormControl><Input type="number" step="0.1" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="age_years" render={({ field }) => (
+                  <FormItem><FormLabel className="text-xs">Age (years)</FormLabel><FormControl><Input type="number" {...field} className="h-9" /></FormControl><FormMessage /></FormItem>
+                )} />
               </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <FormField
-                  control={form.control}
-                  name="allergies"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Allergies (comma separated)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. Penicillin, Sulfa" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="renal_impairment"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm bg-muted/30">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Known Renal Impairment</FormLabel>
-                        <p className="text-xs text-muted-foreground">
-                          Check if patient has CKD or AKI. May adjust dosing warnings.
-                        </p>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField control={form.control} name="allergies" render={({ field }) => (
+                <FormItem className="mb-3"><FormLabel className="text-xs">Allergies (comma separated)</FormLabel><FormControl><Input placeholder="e.g. Penicillin, Sulfa" {...field} className="h-9" /></FormControl></FormItem>
+              )} />
+              <FormField control={form.control} name="renal_impairment" render={({ field }) => (
+                <FormItem className="flex items-start gap-3 rounded-lg border border-border p-3 bg-muted/20">
+                  <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} className="mt-0.5" /></FormControl>
+                  <div>
+                    <FormLabel className="text-sm font-medium cursor-pointer">Renal Impairment (CKD/AKI)</FormLabel>
+                    <p className="text-xs text-muted-foreground">Adjusts dosing warnings for nephrotoxic drugs</p>
+                  </div>
+                </FormItem>
+              )} />
             </div>
 
-            <Separator />
-
-            {/* Drug Selection Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2 text-primary">
-                <Syringe className="w-5 h-5" /> Medication
-              </h3>
-              
-              <FormField
-                control={form.control}
-                name="drug_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Select Drug <span className="text-destructive">*</span></FormLabel>
+            {/* Medication */}
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Syringe className="h-3.5 w-3.5" /> Medication</h3>
+              <FormField control={form.control} name="drug_name" render={({ field }) => (
+                <FormItem className="mb-3">
+                  <FormLabel className="text-xs">Drug</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl><SelectTrigger className="h-9"><SelectValue placeholder="Select a drug" /></SelectTrigger></FormControl>
+                    <SelectContent>{drugs?.map(d => <SelectItem key={d.name} value={d.name}>{d.display_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              {selectedDrug && (
+                <FormField control={form.control} name="route" render={({ field }) => (
+                  <FormItem className="mb-3">
+                    <FormLabel className="text-xs">Route</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a medication" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {drugs?.map((drug) => (
-                          <SelectItem key={drug.name} value={drug.name}>
-                            {drug.display_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                      <FormControl><SelectTrigger className="h-9"><SelectValue placeholder="Default" /></SelectTrigger></FormControl>
+                      <SelectContent>{selectedDrug.routes.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                     </Select>
-                    <FormMessage />
                   </FormItem>
-                )}
-              />
-
-              {selectedDrugDetail && (
-                <FormField
-                  control={form.control}
-                  name="route"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Route (Optional)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Default Route" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {selectedDrugDetail.routes.map((r) => (
-                            <SelectItem key={r} value={r}>{r}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                )} />
               )}
+              {/* Dose fraction */}
+              <FormField control={form.control} name="dose_fraction" render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between mb-2">
+                    <FormLabel className="text-xs">Dose Fraction</FormLabel>
+                    <span className="text-sm font-bold text-primary">{fractionLabels[field.value] ?? `${field.value}×`}</span>
+                  </div>
+                  <FormControl>
+                    <Slider
+                      min={0.25} max={2} step={0.25}
+                      value={[field.value]}
+                      onValueChange={([v]) => field.onChange(v)}
+                      className="w-full"
+                    />
+                  </FormControl>
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>¼</span><span>½</span><span>¾</span><span>Full</span><span>1¼</span><span>1½</span><span>2×</span>
+                  </div>
+                </FormItem>
+              )} />
             </div>
 
-            <Button type="submit" size="lg" className="w-full text-md font-bold" disabled={isPending}>
+            <Button type="submit" size="lg" className="w-full font-bold" disabled={isPending}>
               {isPending ? "Calculating..." : "Calculate Dose"}
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </form>
         </Form>
       </div>
 
-      {/* Results Pane */}
-      <div className="flex-1 p-8 bg-muted/10 overflow-y-auto">
-        {result ? (
-          <div className="max-w-2xl mx-auto space-y-6">
-            <Card className="border-2 border-primary/20 shadow-md">
-              <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
-                <CardTitle className="text-2xl flex items-center justify-between">
-                  <span>{result.display_name} Dose</span>
-                  <Badge variant="outline" className="bg-white">{result.route}</Badge>
-                </CardTitle>
-                <CardDescription className="text-base text-foreground font-medium">
-                  {result.summary}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="bg-primary text-primary-foreground rounded-lg p-6 flex flex-col justify-center items-center text-center shadow-inner">
-                    <span className="text-sm font-medium text-primary-foreground/80 uppercase tracking-wider mb-1">Target Dose</span>
-                    <span className="text-4xl font-bold font-mono tracking-tight">{result.dose_display} <span className="text-xl ml-1">{result.dose_unit}</span></span>
+      {/* Results */}
+      <div className="flex-1 p-6 overflow-y-auto">
+        <AnimatePresence mode="wait">
+          {result ? (
+            <motion.div key="result" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-4">
+              {/* Primary result card */}
+              <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-primary/5 border-b border-primary/10 px-5 py-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-lg text-foreground">{result.display_name}</div>
+                    <div className="text-sm text-muted-foreground">{result.summary}</div>
                   </div>
-                  
-                  <div className="bg-white border-2 border-border rounded-lg p-6 flex flex-col justify-center items-center text-center shadow-sm">
-                    <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">Administer Volume</span>
-                    <span className="text-4xl font-bold font-mono tracking-tight text-foreground">{result.volume_ml} <span className="text-xl ml-1 text-muted-foreground">mL</span></span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{result.route}</Badge>
+                    <button onClick={copyResult} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
-
-                <div className="mt-6 flex items-center justify-center p-3 bg-blue-50 border border-blue-100 rounded-md text-blue-800 text-sm font-medium">
-                  <Info className="w-4 h-4 mr-2" />
-                  Frequency: {result.frequency}
-                </div>
-              </CardContent>
-            </Card>
-
-            {result.contraindications.length > 0 && (
-              <Card className="border-destructive shadow-sm">
-                <CardHeader className="bg-destructive text-destructive-foreground py-3">
-                  <CardTitle className="text-sm font-bold flex items-center tracking-wider uppercase">
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    Contraindications
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4 space-y-3">
-                  {result.contraindications.map((c, i) => (
-                    <div key={i} className="flex items-start bg-red-50 text-red-900 p-3 rounded-md border border-red-100">
-                      <div className="mt-0.5 mr-3">
-                        <AlertTriangle className="w-4 h-4 text-destructive" />
-                      </div>
-                      <div>
-                        {c.absolute && <Badge variant="destructive" className="mb-1 text-[10px]">ABSOLUTE</Badge>}
-                        <p className="text-sm font-medium">{c.detail}</p>
-                      </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-primary rounded-xl p-5 text-center text-primary-foreground">
+                      <div className="text-xs font-semibold opacity-70 uppercase tracking-wider mb-1">Dose</div>
+                      <div className="text-3xl font-bold font-mono">{result.dose_display}</div>
+                      <div className="text-sm opacity-80">{result.dose_unit}</div>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+                    <div className="bg-muted/50 rounded-xl p-5 text-center border border-border">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Volume</div>
+                      <div className="text-3xl font-bold font-mono text-foreground">{result.volume_ml}</div>
+                      <div className="text-sm text-muted-foreground">mL</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2.5 text-blue-800 dark:text-blue-300 text-sm">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <span className="font-medium">Frequency: {result.frequency}</span>
+                  </div>
+                </div>
+              </div>
 
-            {result.interactions.length > 0 && (
-              <Card className="border-orange-500 shadow-sm">
-                <CardHeader className="bg-orange-500 text-white py-3">
-                  <CardTitle className="text-sm font-bold flex items-center tracking-wider uppercase">
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    Drug Interactions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4 space-y-4">
-                  {result.interactions.map((i, idx) => (
-                    <div key={idx} className="border border-orange-200 rounded-md p-4 bg-orange-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-bold text-orange-900">
-                          {i.drug_a} + {i.drug_b}
+              {/* Contraindications */}
+              {result.contraindications.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card border border-red-200 dark:border-red-900 rounded-xl overflow-hidden">
+                  <div className="bg-red-500 text-white px-4 py-2.5 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="text-sm font-bold uppercase tracking-wider">Contraindications</span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {result.contraindications.map((c, i) => (
+                      <div key={i} className="flex items-start gap-3 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg border border-red-100 dark:border-red-900/50">
+                        <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <div>
+                          {c.absolute && <Badge variant="destructive" className="mb-1 text-[10px] h-4">ABSOLUTE</Badge>}
+                          <p className="text-sm text-foreground">{c.detail}</p>
                         </div>
-                        <Badge variant="outline" className="border-orange-500 text-orange-700 bg-white">
-                          {i.severity} Severity
-                        </Badge>
                       </div>
-                      <p className="text-sm text-orange-800 mb-2">{i.description}</p>
-                      <div className="text-xs bg-white p-2 rounded border border-orange-100 text-orange-900">
-                        <span className="font-semibold block mb-1">Management:</span>
-                        {i.management}
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Interactions */}
+              {result.interactions.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-card border border-orange-200 dark:border-orange-900 rounded-xl overflow-hidden">
+                  <div className="bg-orange-500 text-white px-4 py-2.5 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="text-sm font-bold uppercase tracking-wider">Drug Interactions</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {result.interactions.map((ix, i) => (
+                      <div key={i} className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/50 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-foreground">{ix.drug_a} + {ix.drug_b}</span>
+                          <Badge variant="outline" className="border-orange-400 text-orange-700 dark:text-orange-300 text-xs uppercase">{ix.severity}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{ix.description}</p>
+                        <div className="bg-background/70 rounded p-2 text-xs text-foreground border border-border/50">
+                          <span className="font-semibold">Management: </span>{ix.management}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <Calculator className="w-16 h-16 mb-4 text-muted/50" />
-            <h3 className="text-xl font-bold text-foreground mb-2">Awaiting Parameters</h3>
-            <p className="text-center max-w-sm text-sm">
-              Enter patient weight, age, and select a medication on the left to calculate an accurate, safe dosage.
-            </p>
-          </div>
-        )}
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
+              <div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center">
+                <Calculator className="w-9 h-9 text-muted-foreground/40" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-foreground mb-1">Awaiting Parameters</h3>
+                <p className="text-sm max-w-xs">Enter patient details and select a drug to calculate weight-based dosing.</p>
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

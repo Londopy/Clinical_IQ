@@ -1,32 +1,38 @@
-# Clinical_IQ
+# ClinicalIQ
 
-A clinical decision support tool for emergency medicine, built for paramedics, nurses, and clinicians who need fast, reliable answers at the bedside.
+Point-of-care decision support for emergency medicine. Built for paramedics, nurses, and clinicians who need fast, reliable answers at the bedside.
 
-**[Live →](https://londopy.github.io/Clinical_IQ/)**
+**[Live demo →](https://londopy.github.io/Clinical_IQ/)**
+
+---
 
 ## Features
 
-- **Drug Search** — browse and search 49 emergency drugs with full clinical detail: mechanism, routes, reversal agents, and controlled substance status
-- **Dose Calculator** — weight-based dosing with patient-aware safety checks (allergies, conditions, renal impairment, drug interactions)
-- **Drip Calculator** — IV pump rates in mL/hr with bag duration and concentration, for continuous infusions
-- **Vitals Scorer** — simultaneous NEWS2 risk score, qSOFA sepsis alert, and GCS severity from a single set of vitals
-- **Safety Checker** — full contraindication and drug interaction profile for any drug against a patient profile
+| Tool | What it does |
+|---|---|
+| **Drug Search** | Browse 49 emergency drugs — mechanism, routes, reversal agents, controlled substance status |
+| **Dose Calculator** | Weight-based dosing with allergy screening, renal adjustment, and dose-fraction control |
+| **Drip Calculator** | IV pump rates (mL/hr), bag duration, and max-rate warnings from ordered dose and concentration |
+| **Vitals Scorer** | NEWS2, qSOFA, and GCS simultaneously from one set of vitals |
+| **Safety Checker** | Contraindication and interaction profile for any drug against a full patient picture |
+| **Interactions** | Pairwise drug-drug interaction check across an entire medication list at once |
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React + Vite + TypeScript |
-| UI | Radix UI + Tailwind CSS |
-| State / data fetching | TanStack Query |
+| Frontend | React 19 + Vite + TypeScript |
+| Styling | Tailwind CSS v4 + Radix UI (shadcn) |
+| Animations | Framer Motion |
+| Data fetching | TanStack Query + orval-generated hooks |
 | Backend | Express + TypeScript |
-| Clinical computation | Python (`drugdose`, `vitalscore`) |
-| Inter-process | TypeScript → Python via stdin/stdout JSON |
-| Hosting | GitHub Pages (frontend) + Railway (backend) |
+| Clinical logic | Python — `drugdose`, `vitalscore` |
+| IPC | TypeScript → Python via stdin/stdout JSON |
+| Hosting | GitHub Pages (frontend) · Railway (backend) |
 
 ## Python Libraries
 
-Clinical computations are powered by two PyPI libraries by me, [Londopy](https://pypi.org/user/londopy/):
+Clinical computations are powered by two PyPI packages authored by [londopy](https://pypi.org/user/londopy/):
 
 - [`drugdose`](https://pypi.org/project/drugdose/) — drug database, weight-based dosing, contraindication and interaction checking
 - [`vitalscore`](https://pypi.org/project/vitalscore/) — NEWS2, qSOFA, and GCS scoring
@@ -35,42 +41,44 @@ Clinical computations are powered by two PyPI libraries by me, [Londopy](https:/
 
 ```
 artifacts/
-  api-server/          # Express backend
+  api-server/            # Express backend
     src/
-      routes/          # clinical.ts, drugs.ts
-      lib/python.ts    # Python subprocess runner
-    python/            # Python scripts (dose, drip, vitals, safety, drugs)
-  clinical-tool/       # React Vite frontend
+      routes/            # drugs.ts, clinical.ts
+      lib/python.ts      # Python subprocess runner
+    python/              # dose.py, drip.py, vitals.py, safety.py,
+                         # interactions.py, drugs.py
+  clinical-tool/         # React + Vite frontend
     src/
-      pages/           # drug-search, dose-calculator, drip-calculator,
-                       # vitals-scorer, safety-checker
-      components/      # layout, shared UI
+      pages/             # dashboard, drug-search, dose-calculator,
+                         # drip-calculator, vitals-scorer,
+                         # safety-checker, interactions-checker
+      components/        # layout.tsx, shadcn UI primitives
 lib/
-  api-spec/            # OpenAPI spec
-  api-client-react/    # Generated TanStack Query hooks
-  api-zod/             # Generated Zod schemas
+  api-spec/              # OpenAPI spec (source of truth)
+  api-client-react/      # Generated TanStack Query hooks
+  api-zod/               # Generated Zod request/response schemas
 ```
 
-## Getting Started
+## Local Development
 
 ```bash
-# Install dependencies
+# 1. Install JS dependencies
 pnpm install
 
-# Install Python packages
+# 2. Install Python packages
 pip install drugdose vitalscore
 
-# Start the API server
+# 3. Start the API server  (http://localhost:3000)
 pnpm --filter @workspace/api-server run dev
 
-# Start the frontend (runs on http://localhost:5173)
+# 4. Start the frontend   (http://localhost:5173)
 pnpm --filter @workspace/clinical-tool run dev
 ```
 
 ## Deployment
 
-The frontend deploys automatically to GitHub Pages on every push to `main` via GitHub Actions. The backend runs on Railway and is pointed to by `VITE_API_URL` at build time.
+Pushes to `main` trigger a GitHub Actions workflow that builds the frontend with `BASE_PATH=/Clinical_IQ/` and `VITE_API_URL` (set as a repo variable) baked in, then deploys to GitHub Pages. The backend runs on Railway and is wired up automatically via the same env variable.
 
 ---
 
-> **For educational use only. Verify all clinical calculations independently before use.**
+> **For educational use only. Always verify calculations independently before clinical use.**
